@@ -23,6 +23,8 @@ export default function ComparePage() {
   const [results, setResults] = useState<Result[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/analyses/${params.analysisId}/calculate`)
@@ -81,6 +83,35 @@ export default function ComparePage() {
 
     return items;
   }, [baseline, best, savings]);
+
+  async function exportPdf() {
+    try {
+      setExportError(null);
+      setExporting(true);
+      const response = await fetch('/api/exports/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysisId: params.analysisId }),
+      });
+
+      if (!response.ok) {
+        const json = await response.json();
+        throw new Error(json.error ?? 'PDF generation failed');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `import-margin-guard-${params.analysisId}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError((err as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   if (loading) return <main className="content-wrap"><div className="card">Calculating scenarios...</div></main>;
   if (error) return <main className="content-wrap"><div className="alert error">{error}</div></main>;
@@ -178,7 +209,9 @@ export default function ComparePage() {
         </p>
       </section>
 
+      {exportError ? <div className="alert error" style={{ marginTop: 16 }}>{exportError}</div> : null}
       <div className="actions">
+        <button className="btn btn-primary" onClick={exportPdf} disabled={exporting}>{exporting ? 'Generating PDF...' : 'Export PDF'}</button>
         <button className="btn btn-secondary" onClick={() => router.push(`/analyses/${params.analysisId}/builder`)}>Back to builder</button>
       </div>
     </main>
