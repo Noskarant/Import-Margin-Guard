@@ -3,12 +3,21 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { calculateScenario } from '@/features/scenarios/lib/calculate';
 import { getAnalysis, getImport, getOrganization } from '@/lib/demo-store';
 
+function sanitizeText(value: string) {
+  return value
+    .replace(/[\u202F\u00A0]/g, ' ')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
+}
+
 function formatCurrency(value: number, locale: string, currency: string) {
-  return new Intl.NumberFormat(locale, {
+  const formatted = new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
     maximumFractionDigits: 2,
   }).format(value);
+  return sanitizeText(formatted);
 }
 
 function confidenceLabel(marginPct?: number) {
@@ -80,7 +89,7 @@ export async function POST(request: NextRequest) {
     const line = 14;
 
     const drawTextBlock = (text: string, size = 10, maxWidth = 500, color = rgb(0.06, 0.09, 0.16), font = regular) => {
-      const lines = text.split('\n');
+      const lines = sanitizeText(text).split('\n');
       for (const entry of lines) {
         page.drawText(entry, { x: left, y, font, size, color, maxWidth, lineHeight: line });
         y -= line;
@@ -127,10 +136,10 @@ export async function POST(request: NextRequest) {
 
     for (const item of sorted.slice(0, 8)) {
       const delta = item.summary.landedTotal - baseline.summary.landedTotal;
-      page.drawText(item.scenarioName.slice(0, 28), { x: left, y, font: regular, size: 9 });
+      page.drawText(sanitizeText(item.scenarioName.slice(0, 28)), { x: left, y, font: regular, size: 9 });
       page.drawText(formatCurrency(item.summary.landedTotal, locale, currency), { x: 240, y, font: regular, size: 9 });
       page.drawText(formatCurrency(item.summary.landedUnitWeighted, locale, currency), { x: 340, y, font: regular, size: 9 });
-      page.drawText(`${delta >= 0 ? '+' : ''}${formatCurrency(delta, locale, currency)}`, { x: 420, y, font: regular, size: 9 });
+      page.drawText(sanitizeText(`${delta >= 0 ? '+' : ''}${formatCurrency(delta, locale, currency)}`), { x: 420, y, font: regular, size: 9 });
       page.drawText(confidenceLabel(item.summary.marginPct), { x: 500, y, font: regular, size: 9 });
       y -= 13;
     }
