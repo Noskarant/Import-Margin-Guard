@@ -33,6 +33,7 @@ export type DemoScenario = {
   id: string;
   name: string;
   isBaseline: boolean;
+  notes?: string;
   purchasePriceMultiplier: number;
   transportMultiplier: number;
   dutyRateOverride?: number;
@@ -108,6 +109,11 @@ export async function findOrgForUser(userId: string) {
   return db.organizations.find((org) => org.ownerUserId === userId);
 }
 
+export async function getOrganization(orgId: string) {
+  const db = await readDb();
+  return db.organizations.find((org) => org.id === orgId);
+}
+
 export async function createImport(input: Omit<DemoImport, 'id' | 'createdAt' | 'mappedRows' | 'status'>) {
   const db = await readDb();
   const record: DemoImport = {
@@ -144,6 +150,7 @@ export async function createAnalysis(input: { orgId: string; importId: string; t
       id: randomUUID(),
       name: 'Baseline',
       isBaseline: true,
+      notes: 'Current reference assumptions',
       purchasePriceMultiplier: 1,
       transportMultiplier: 1,
       ancillaryMultiplier: 1,
@@ -152,6 +159,7 @@ export async function createAnalysis(input: { orgId: string; importId: string; t
       id: randomUUID(),
       name: 'Scenario B',
       isBaseline: false,
+      notes: 'Alternative sourcing assumptions',
       purchasePriceMultiplier: 1,
       transportMultiplier: 1,
       ancillaryMultiplier: 1,
