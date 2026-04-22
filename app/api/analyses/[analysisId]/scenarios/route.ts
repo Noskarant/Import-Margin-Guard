@@ -13,6 +13,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         id: randomUUID(),
         name,
         isBaseline: false,
+        notes: 'Describe the operational difference for this option',
         purchasePriceMultiplier: 1,
         transportMultiplier: 1,
         ancillaryMultiplier: 1,
@@ -35,6 +36,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const scenario = record.scenarios.find((item) => item.id === scenarioId);
       if (!scenario) throw new Error('Scenario not found');
       scenario.name = String(body.name ?? scenario.name);
+      scenario.notes = String(body.notes ?? scenario.notes ?? '').trim();
       scenario.purchasePriceMultiplier = Number(body.purchasePriceMultiplier ?? scenario.purchasePriceMultiplier);
       scenario.transportMultiplier = Number(body.transportMultiplier ?? scenario.transportMultiplier);
       scenario.ancillaryMultiplier = Number(body.ancillaryMultiplier ?? scenario.ancillaryMultiplier);
