@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 type Scenario = {
@@ -19,6 +19,66 @@ type AnalysisPayload = {
   importRecord: { mappedRows: Array<{ sku: string }> };
 };
 
+type Lang = 'en' | 'fr';
+const LANG_STORAGE_KEY = 'img_lang';
+
+const copy = {
+  en: {
+    loading: 'Loading analysis builder...',
+    notFound: 'Analysis not found',
+    title: 'Analysis builder',
+    subtitle: 'Edit baseline and alternative assumptions, then compare landed cost estimates.',
+    details: 'Analysis details',
+    analysisTitle: 'Analysis title',
+    importedRows: 'Imported rows',
+    minScenarios: 'At least 2 scenarios are required to run comparison.',
+    baseline: 'Baseline',
+    scenario: 'Scenario',
+    name: 'Name',
+    dutyOverride: 'Duty override (optional)',
+    purchaseMultiplier: 'Purchase multiplier',
+    transportMultiplier: 'Transport multiplier',
+    ancillaryMultiplier: 'Ancillary multiplier',
+    scenarioNotes: 'Scenario notes (optional)',
+    scenarioNotesPlaceholder: 'Example: Supplier in Turkey, faster lead time, slightly higher transport cost.',
+    saveScenario: 'Save scenario',
+    addScenario: 'Add scenario',
+    saveAnalysis: 'Save analysis',
+    savingAnalysis: 'Saving analysis...',
+    compareScenarios: 'Compare scenarios',
+    unableAdd: 'Unable to add scenario',
+    unableSave: 'Unable to save scenario',
+    saveFailed: 'Save failed',
+  },
+  fr: {
+    loading: 'Chargement du builder...',
+    notFound: 'Analyse introuvable',
+    title: 'Builder d’analyse',
+    subtitle: 'Modifie les hypothèses baseline et alternatives, puis compare les estimations de landed cost.',
+    details: 'Détails de l’analyse',
+    analysisTitle: 'Titre de l’analyse',
+    importedRows: 'Lignes importées',
+    minScenarios: 'Au moins 2 scénarios sont requis pour lancer la comparaison.',
+    baseline: 'Baseline',
+    scenario: 'Scénario',
+    name: 'Nom',
+    dutyOverride: 'Override des droits (optionnel)',
+    purchaseMultiplier: 'Multiplicateur achat',
+    transportMultiplier: 'Multiplicateur transport',
+    ancillaryMultiplier: 'Multiplicateur frais annexes',
+    scenarioNotes: 'Notes du scénario (optionnel)',
+    scenarioNotesPlaceholder: 'Exemple : fournisseur en Turquie, lead time plus rapide, coût transport un peu plus élevé.',
+    saveScenario: 'Enregistrer le scénario',
+    addScenario: 'Ajouter un scénario',
+    saveAnalysis: 'Enregistrer l’analyse',
+    savingAnalysis: 'Enregistrement de l’analyse...',
+    compareScenarios: 'Comparer les scénarios',
+    unableAdd: 'Impossible d’ajouter le scénario',
+    unableSave: 'Impossible d’enregistrer le scénario',
+    saveFailed: 'Échec de l’enregistrement',
+  },
+} as const;
+
 export default function BuilderPage() {
   const params = useParams<{ analysisId: string }>();
   const router = useRouter();
@@ -27,6 +87,22 @@ export default function BuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [lang, setLang] = useState<Lang>('en');
+
+  useEffect(() => {
+    const storedLang = window.localStorage.getItem(LANG_STORAGE_KEY);
+    setLang(storedLang === 'fr' ? 'fr' : 'en');
+
+    function onLanguageChange(event: Event) {
+      const customEvent = event as CustomEvent<Lang>;
+      setLang(customEvent.detail === 'fr' ? 'fr' : 'en');
+    }
+
+    window.addEventListener('img-language-change', onLanguageChange as EventListener);
+    return () => window.removeEventListener('img-language-change', onLanguageChange as EventListener);
+  }, []);
+
+  const t = useMemo(() => copy[lang], [lang]);
 
   useEffect(() => {
     fetch(`/api/analyses/${params.analysisId}`)
@@ -49,7 +125,7 @@ export default function BuilderPage() {
       body: JSON.stringify({ name: `Scenario ${String.fromCharCode(65 + (data?.analysis.scenarios.length ?? 1))}` }),
     });
     const json = await response.json();
-    if (!response.ok) return setError(json.error ?? 'Unable to add scenario');
+    if (!response.ok) return setError(json.error ?? t.unableAdd);
     setData((current) => (current ? { ...current, analysis: { ...current.analysis, scenarios: json.scenarios } } : current));
   }
 
@@ -60,7 +136,7 @@ export default function BuilderPage() {
       body: JSON.stringify(scenario),
     });
     const json = await response.json();
-    if (!response.ok) return setError(json.error ?? 'Unable to save scenario');
+    if (!response.ok) return setError(json.error ?? t.unableSave);
     setData((current) => (current ? { ...current, analysis: { ...current.analysis, scenarios: json.scenarios } } : current));
   }
 
@@ -73,44 +149,44 @@ export default function BuilderPage() {
     });
     const json = await response.json();
     setSaving(false);
-    if (!response.ok) return setError(json.error ?? 'Save failed');
+    if (!response.ok) return setError(json.error ?? t.saveFailed);
     setData((current) => (current ? { ...current, analysis: json.analysis } : current));
   }
 
-  if (loading) return <main className="content-wrap"><div className="card">Loading analysis builder...</div></main>;
-  if (!data) return <main className="content-wrap"><div className="alert error">{error ?? 'Analysis not found'}</div></main>;
+  if (loading) return <main className="content-wrap"><div className="card">{t.loading}</div></main>;
+  if (!data) return <main className="content-wrap"><div className="alert error">{error ?? t.notFound}</div></main>;
 
   return (
     <main className="content-wrap">
       <header className="page-head">
-        <h1>Analysis builder</h1>
-        <p>Edit baseline and alternative assumptions, then compare landed cost estimates.</p>
+        <h1>{t.title}</h1>
+        <p>{t.subtitle}</p>
       </header>
 
       <section className="card" style={{ marginTop: 16 }}>
-        <h2 style={{ marginTop: 0 }}>Analysis details</h2>
+        <h2 style={{ marginTop: 0 }}>{t.details}</h2>
         <div className="grid-2">
           <label>
-            Analysis title
+            {t.analysisTitle}
             <input value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
           <div>
-            <p className="kpi-title">Imported rows</p>
+            <p className="kpi-title">{t.importedRows}</p>
             <p className="kpi-value" style={{ fontSize: 20 }}>{data.importRecord?.mappedRows.length ?? 0}</p>
           </div>
         </div>
-        <p className="muted">At least 2 scenarios are required to run comparison.</p>
+        <p className="muted">{t.minScenarios}</p>
       </section>
 
       {data.analysis.scenarios.map((scenario) => (
         <section key={scenario.id} className="card" style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <h3 style={{ margin: 0 }}>{scenario.name}</h3>
-            <span className={`badge ${scenario.isBaseline ? 'warn' : ''}`}>{scenario.isBaseline ? 'Baseline' : 'Scenario'}</span>
+            <span className={`badge ${scenario.isBaseline ? 'warn' : ''}`}>{scenario.isBaseline ? t.baseline : t.scenario}</span>
           </div>
           <div className="grid-2">
             <label>
-              Name
+              {t.name}
               <input
                 value={scenario.name}
                 onChange={(event) =>
@@ -131,7 +207,7 @@ export default function BuilderPage() {
               />
             </label>
             <label>
-              Duty override (optional)
+              {t.dutyOverride}
               <input
                 type="number"
                 step="0.01"
@@ -156,7 +232,7 @@ export default function BuilderPage() {
               />
             </label>
             <label>
-              Purchase multiplier
+              {t.purchaseMultiplier}
               <input
                 type="number"
                 step="0.01"
@@ -179,7 +255,7 @@ export default function BuilderPage() {
               />
             </label>
             <label>
-              Transport multiplier
+              {t.transportMultiplier}
               <input
                 type="number"
                 step="0.01"
@@ -202,7 +278,7 @@ export default function BuilderPage() {
               />
             </label>
             <label>
-              Ancillary multiplier
+              {t.ancillaryMultiplier}
               <input
                 type="number"
                 step="0.01"
@@ -227,10 +303,10 @@ export default function BuilderPage() {
           </div>
           <div style={{ marginTop: 12 }}>
             <label>
-              Scenario notes (optional)
+              {t.scenarioNotes}
               <textarea
                 value={scenario.notes ?? ''}
-                placeholder="Example: Supplier in Turkey, faster lead time, slightly higher transport cost."
+                placeholder={t.scenarioNotesPlaceholder}
                 onChange={(event) =>
                   setData((current) =>
                     current
@@ -250,16 +326,16 @@ export default function BuilderPage() {
             </label>
           </div>
           <div className="actions">
-            <button className="btn btn-secondary" type="button" onClick={() => saveScenario(scenario)}>Save scenario</button>
+            <button className="btn btn-secondary" type="button" onClick={() => saveScenario(scenario)}>{t.saveScenario}</button>
           </div>
         </section>
       ))}
 
       {error ? <div className="alert error" style={{ marginTop: 16 }}>{error}</div> : null}
       <div className="actions" style={{ marginTop: 16 }}>
-        <button className="btn btn-secondary" type="button" onClick={addScenario}>Add scenario</button>
-        <button className="btn btn-primary" type="button" onClick={saveAnalysis} disabled={saving}>{saving ? 'Saving analysis...' : 'Save analysis'}</button>
-        <button className="btn btn-primary" type="button" onClick={() => router.push(`/analyses/${params.analysisId}/compare`)} disabled={data.analysis.scenarios.length < 2}>Compare scenarios</button>
+        <button className="btn btn-secondary" type="button" onClick={addScenario}>{t.addScenario}</button>
+        <button className="btn btn-primary" type="button" onClick={saveAnalysis} disabled={saving}>{saving ? t.savingAnalysis : t.saveAnalysis}</button>
+        <button className="btn btn-primary" type="button" onClick={() => router.push(`/analyses/${params.analysisId}/compare`)} disabled={data.analysis.scenarios.length < 2}>{t.compareScenarios}</button>
       </div>
     </main>
   );
