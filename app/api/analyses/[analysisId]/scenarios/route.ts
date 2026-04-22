@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const { analysisId } = await params;
     const body = await request.json();
-    const scenarioId = String(body.scenarioId ?? '');
+    const scenarioId = String(body.scenarioId ?? body.id ?? '');
 
     const analysis = await saveAnalysis(analysisId, (record) => {
       const scenario = record.scenarios.find((item) => item.id === scenarioId);
