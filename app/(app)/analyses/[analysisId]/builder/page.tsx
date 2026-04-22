@@ -4,10 +4,20 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 type Scenario = {
-  id: string; name: string; isBaseline: boolean; purchasePriceMultiplier: number; transportMultiplier: number; ancillaryMultiplier: number; dutyRateOverride?: number;
+  id: string;
+  name: string;
+  isBaseline: boolean;
+  notes?: string;
+  purchasePriceMultiplier: number;
+  transportMultiplier: number;
+  ancillaryMultiplier: number;
+  dutyRateOverride?: number;
 };
 
-type AnalysisPayload = { analysis: { id: string; title: string; status: string; scenarios: Scenario[] }; importRecord: { mappedRows: Array<{ sku: string }> } };
+type AnalysisPayload = {
+  analysis: { id: string; title: string; status: string; scenarios: Scenario[] };
+  importRecord: { mappedRows: Array<{ sku: string }> };
+};
 
 export default function BuilderPage() {
   const params = useParams<{ analysisId: string }>();
@@ -19,21 +29,36 @@ export default function BuilderPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/analyses/${params.analysisId}`).then((response) => response.json()).then((json) => {
-      if (!json.error) { setData(json); setTitle(json.analysis.title); } else setError(json.error);
-      setLoading(false);
-    });
+    fetch(`/api/analyses/${params.analysisId}`)
+      .then((response) => response.json())
+      .then((json) => {
+        if (!json.error) {
+          setData(json);
+          setTitle(json.analysis.title);
+        } else {
+          setError(json.error);
+        }
+        setLoading(false);
+      });
   }, [params.analysisId]);
 
   async function addScenario() {
-    const response = await fetch(`/api/analyses/${params.analysisId}/scenarios`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `Scenario ${String.fromCharCode(65 + (data?.analysis.scenarios.length ?? 1))}` }) });
+    const response = await fetch(`/api/analyses/${params.analysisId}/scenarios`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: `Scenario ${String.fromCharCode(65 + (data?.analysis.scenarios.length ?? 1))}` }),
+    });
     const json = await response.json();
     if (!response.ok) return setError(json.error ?? 'Unable to add scenario');
     setData((current) => (current ? { ...current, analysis: { ...current.analysis, scenarios: json.scenarios } } : current));
   }
 
   async function saveScenario(scenario: Scenario) {
-    const response = await fetch(`/api/analyses/${params.analysisId}/scenarios`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scenario) });
+    const response = await fetch(`/api/analyses/${params.analysisId}/scenarios`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(scenario),
+    });
     const json = await response.json();
     if (!response.ok) return setError(json.error ?? 'Unable to save scenario');
     setData((current) => (current ? { ...current, analysis: { ...current.analysis, scenarios: json.scenarios } } : current));
@@ -41,7 +66,11 @@ export default function BuilderPage() {
 
   async function saveAnalysis() {
     setSaving(true);
-    const response = await fetch(`/api/analyses/${params.analysisId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, status: 'saved' }) });
+    const response = await fetch(`/api/analyses/${params.analysisId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, status: 'saved' }),
+    });
     const json = await response.json();
     setSaving(false);
     if (!response.ok) return setError(json.error ?? 'Save failed');
@@ -53,13 +82,22 @@ export default function BuilderPage() {
 
   return (
     <main className="content-wrap">
-      <header className="page-head"><h1>Analysis builder</h1><p>Edit baseline and alternative assumptions, then compare landed cost estimates.</p></header>
+      <header className="page-head">
+        <h1>Analysis builder</h1>
+        <p>Edit baseline and alternative assumptions, then compare landed cost estimates.</p>
+      </header>
 
       <section className="card" style={{ marginTop: 16 }}>
         <h2 style={{ marginTop: 0 }}>Analysis details</h2>
         <div className="grid-2">
-          <label>Analysis title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
-          <div><p className="kpi-title">Imported rows</p><p className="kpi-value" style={{ fontSize: 20 }}>{data.importRecord?.mappedRows.length ?? 0}</p></div>
+          <label>
+            Analysis title
+            <input value={title} onChange={(event) => setTitle(event.target.value)} />
+          </label>
+          <div>
+            <p className="kpi-title">Imported rows</p>
+            <p className="kpi-value" style={{ fontSize: 20 }}>{data.importRecord?.mappedRows.length ?? 0}</p>
+          </div>
         </div>
         <p className="muted">At least 2 scenarios are required to run comparison.</p>
       </section>
@@ -71,13 +109,149 @@ export default function BuilderPage() {
             <span className={`badge ${scenario.isBaseline ? 'warn' : ''}`}>{scenario.isBaseline ? 'Baseline' : 'Scenario'}</span>
           </div>
           <div className="grid-2">
-            <label>Name<input value={scenario.name} onChange={(event) => setData((current) => current ? { ...current, analysis: { ...current.analysis, scenarios: current.analysis.scenarios.map((item) => item.id === scenario.id ? { ...item, name: event.target.value } : item) } } : current)} /></label>
-            <label>Duty override (optional)<input type="number" step="0.01" value={scenario.dutyRateOverride ?? ''} onChange={(event) => setData((current) => current ? { ...current, analysis: { ...current.analysis, scenarios: current.analysis.scenarios.map((item) => item.id === scenario.id ? { ...item, dutyRateOverride: event.target.value === '' ? undefined : Number(event.target.value) } : item) } } : current)} /></label>
-            <label>Purchase multiplier<input type="number" step="0.01" value={scenario.purchasePriceMultiplier} onChange={(event) => setData((current) => current ? { ...current, analysis: { ...current.analysis, scenarios: current.analysis.scenarios.map((item) => item.id === scenario.id ? { ...item, purchasePriceMultiplier: Number(event.target.value) } : item) } } : current)} /></label>
-            <label>Transport multiplier<input type="number" step="0.01" value={scenario.transportMultiplier} onChange={(event) => setData((current) => current ? { ...current, analysis: { ...current.analysis, scenarios: current.analysis.scenarios.map((item) => item.id === scenario.id ? { ...item, transportMultiplier: Number(event.target.value) } : item) } } : current)} /></label>
-            <label>Ancillary multiplier<input type="number" step="0.01" value={scenario.ancillaryMultiplier} onChange={(event) => setData((current) => current ? { ...current, analysis: { ...current.analysis, scenarios: current.analysis.scenarios.map((item) => item.id === scenario.id ? { ...item, ancillaryMultiplier: Number(event.target.value) } : item) } } : current)} /></label>
+            <label>
+              Name
+              <input
+                value={scenario.name}
+                onChange={(event) =>
+                  setData((current) =>
+                    current
+                      ? {
+                          ...current,
+                          analysis: {
+                            ...current.analysis,
+                            scenarios: current.analysis.scenarios.map((item) =>
+                              item.id === scenario.id ? { ...item, name: event.target.value } : item,
+                            ),
+                          },
+                        }
+                      : current,
+                  )
+                }
+              />
+            </label>
+            <label>
+              Duty override (optional)
+              <input
+                type="number"
+                step="0.01"
+                value={scenario.dutyRateOverride ?? ''}
+                onChange={(event) =>
+                  setData((current) =>
+                    current
+                      ? {
+                          ...current,
+                          analysis: {
+                            ...current.analysis,
+                            scenarios: current.analysis.scenarios.map((item) =>
+                              item.id === scenario.id
+                                ? { ...item, dutyRateOverride: event.target.value === '' ? undefined : Number(event.target.value) }
+                                : item,
+                            ),
+                          },
+                        }
+                      : current,
+                  )
+                }
+              />
+            </label>
+            <label>
+              Purchase multiplier
+              <input
+                type="number"
+                step="0.01"
+                value={scenario.purchasePriceMultiplier}
+                onChange={(event) =>
+                  setData((current) =>
+                    current
+                      ? {
+                          ...current,
+                          analysis: {
+                            ...current.analysis,
+                            scenarios: current.analysis.scenarios.map((item) =>
+                              item.id === scenario.id ? { ...item, purchasePriceMultiplier: Number(event.target.value) } : item,
+                            ),
+                          },
+                        }
+                      : current,
+                  )
+                }
+              />
+            </label>
+            <label>
+              Transport multiplier
+              <input
+                type="number"
+                step="0.01"
+                value={scenario.transportMultiplier}
+                onChange={(event) =>
+                  setData((current) =>
+                    current
+                      ? {
+                          ...current,
+                          analysis: {
+                            ...current.analysis,
+                            scenarios: current.analysis.scenarios.map((item) =>
+                              item.id === scenario.id ? { ...item, transportMultiplier: Number(event.target.value) } : item,
+                            ),
+                          },
+                        }
+                      : current,
+                  )
+                }
+              />
+            </label>
+            <label>
+              Ancillary multiplier
+              <input
+                type="number"
+                step="0.01"
+                value={scenario.ancillaryMultiplier}
+                onChange={(event) =>
+                  setData((current) =>
+                    current
+                      ? {
+                          ...current,
+                          analysis: {
+                            ...current.analysis,
+                            scenarios: current.analysis.scenarios.map((item) =>
+                              item.id === scenario.id ? { ...item, ancillaryMultiplier: Number(event.target.value) } : item,
+                            ),
+                          },
+                        }
+                      : current,
+                  )
+                }
+              />
+            </label>
           </div>
-          <div className="actions"><button className="btn btn-secondary" type="button" onClick={() => saveScenario(scenario)}>Save scenario</button></div>
+          <div style={{ marginTop: 12 }}>
+            <label>
+              Scenario notes (optional)
+              <textarea
+                value={scenario.notes ?? ''}
+                placeholder="Example: Supplier in Turkey, faster lead time, slightly higher transport cost."
+                onChange={(event) =>
+                  setData((current) =>
+                    current
+                      ? {
+                          ...current,
+                          analysis: {
+                            ...current.analysis,
+                            scenarios: current.analysis.scenarios.map((item) =>
+                              item.id === scenario.id ? { ...item, notes: event.target.value } : item,
+                            ),
+                          },
+                        }
+                      : current,
+                  )
+                }
+              />
+            </label>
+          </div>
+          <div className="actions">
+            <button className="btn btn-secondary" type="button" onClick={() => saveScenario(scenario)}>Save scenario</button>
+          </div>
         </section>
       ))}
 
