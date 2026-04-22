@@ -25,6 +25,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ analysisId
       scenarioId: scenario.id,
       scenarioName: scenario.name,
       isBaseline: scenario.isBaseline,
+      notes: scenario.notes ?? '',
       summary: calculateScenario(rows),
     };
   });
