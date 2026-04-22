@@ -2,22 +2,51 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/imports/new', label: 'New Import' },
-  { href: '/analyses', label: 'Saved Analyses' },
-  { href: '/onboarding', label: 'Organization' },
-];
+import { useEffect, useMemo, useState } from 'react';
 
 const THEME_STORAGE_KEY = 'img_theme';
+const LANG_STORAGE_KEY = 'img_lang';
+
+const navItems = [
+  { href: '/dashboard', key: 'dashboard' },
+  { href: '/imports/new', key: 'newImport' },
+  { href: '/analyses', key: 'savedAnalyses' },
+  { href: '/onboarding', key: 'organization' },
+] as const;
+
+const copy = {
+  en: {
+    dashboard: 'Dashboard',
+    newImport: 'New Import',
+    savedAnalyses: 'Saved Analyses',
+    organization: 'Organization',
+    darkMode: 'Dark mode',
+    language: 'Language',
+    signOut: 'Sign out',
+    trial: 'Trial',
+  },
+  fr: {
+    dashboard: 'Tableau de bord',
+    newImport: 'Nouvel import',
+    savedAnalyses: 'Analyses sauvegardées',
+    organization: 'Organisation',
+    darkMode: 'Mode sombre',
+    language: 'Langue',
+    signOut: 'Se déconnecter',
+    trial: 'Essai',
+  },
+} as const;
+
+type Lang = keyof typeof copy;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [orgName, setOrgName] = useState('Workspace');
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [lang, setLang] = useState<Lang>('en');
+
+  const t = useMemo(() => copy[lang], [lang]);
 
   useEffect(() => {
     fetch('/api/org')
@@ -32,6 +61,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const shouldUseDark = storedTheme === 'dark';
     setIsDarkMode(shouldUseDark);
     document.documentElement.dataset.theme = shouldUseDark ? 'dark' : 'light';
+
+    const storedLang = window.localStorage.getItem(LANG_STORAGE_KEY);
+    const nextLang: Lang = storedLang === 'fr' ? 'fr' : 'en';
+    setLang(nextLang);
+    document.documentElement.lang = nextLang;
   }, []);
 
   function toggleTheme() {
@@ -42,6 +76,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       document.documentElement.dataset.theme = nextTheme;
       return next;
     });
+  }
+
+  function updateLanguage(nextLang: Lang) {
+    setLang(nextLang);
+    window.localStorage.setItem(LANG_STORAGE_KEY, nextLang);
+    document.documentElement.lang = nextLang;
+    window.dispatchEvent(new CustomEvent('img-language-change', { detail: nextLang }));
   }
 
   async function signOut() {
@@ -56,7 +97,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="nav-list">
           {navItems.map((item) => (
             <Link key={item.href} href={item.href} className={`nav-item ${pathname.startsWith(item.href) ? 'active' : ''}`}>
-              {item.label}
+              {t[item.key]}
             </Link>
           ))}
         </nav>
@@ -67,14 +108,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="topbar-meta">
             <strong>{orgName}</strong>
             <span className="badge">MVP Demo</span>
-            <span className="badge warn">Trial</span>
+            <span className="badge warn">{t.trial}</span>
           </div>
           <div className="topbar-actions">
             <label className="toggle-switch" aria-label="Toggle dark mode">
               <input type="checkbox" checked={isDarkMode} onChange={toggleTheme} />
-              <span>Dark mode</span>
+              <span>{t.darkMode}</span>
             </label>
-            <button type="button" className="btn btn-secondary" onClick={signOut}>Sign out</button>
+            <label className="lang-select" aria-label="Select interface language">
+              <span>{t.language}</span>
+              <select value={lang} onChange={(event) => updateLanguage(event.target.value === 'fr' ? 'fr' : 'en')}>
+                <option value="en">EN</option>
+                <option value="fr">FR</option>
+              </select>
+            </label>
+            <button type="button" className="btn btn-secondary" onClick={signOut}>{t.signOut}</button>
           </div>
         </header>
         {children}
