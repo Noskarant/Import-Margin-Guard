@@ -26,14 +26,36 @@ export async function GET(_: Request, { params }: { params: Promise<{ analysisId
         dutyRate: scenario.dutyRateOverride ?? row.dutyRate,
         ancillaryFees: row.ancillaryFees * scenario.ancillaryMultiplier,
         salesPrice: row.salesPrice,
+        currency: row.currency,
+        incoterm: row.incoterm,
+        weightKg: row.weightKg,
+        volumeM3: row.volumeM3,
       }));
+
+      const summary = calculateScenario(rows, {
+        reportingCurrency: scenario.reportingCurrency,
+        exchangeRate: scenario.exchangeRate,
+        costAllocationMethod: scenario.costAllocationMethod,
+        incotermOverride: scenario.incotermOverride,
+        originCost: scenario.originCost,
+        mainFreightCost: scenario.mainFreightCost,
+        insuranceCost: scenario.insuranceCost,
+        destinationCost: scenario.destinationCost,
+      });
 
       return {
         scenarioId: scenario.id,
         scenarioName: scenario.name,
         isBaseline: scenario.isBaseline,
         notes: scenario.notes ?? '',
-        summary: calculateScenario(rows),
+        appliedAssumptions: {
+          reportingCurrency: scenario.reportingCurrency,
+          exchangeRate: scenario.exchangeRate,
+          costAllocationMethod: scenario.costAllocationMethod,
+          incotermMode: scenario.incotermOverride ? 'override' : 'imported',
+          incotermOverride: scenario.incotermOverride,
+        },
+        summary,
       };
     });
 
