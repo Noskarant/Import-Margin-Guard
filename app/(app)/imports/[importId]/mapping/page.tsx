@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 const REQUIRED_TARGETS = ['sku', 'supplier', 'country', 'unitPurchasePrice', 'quantity', 'currency', 'transportCost', 'dutyRate', 'incoterm', 'ancillaryFees'] as const;
-type ImportPayload = { id: string; headers: string[]; previewRows: Record<string, string>[] };
+type ImportPayload = {
+  id: string;
+  headers: string[];
+  previewRows: Record<string, string>[];
+  suggestedMapping?: Record<string, string> | null;
+  mappingSource?: 'saved' | 'suggested';
+};
 type Lang = 'en' | 'fr';
 const LANG_STORAGE_KEY = 'img_lang';
 
@@ -33,6 +39,8 @@ const copy = {
     validateImport: 'Validate and import rows',
     commitFailed: 'Commit failed',
     analysisCreationFailed: 'Analysis creation failed',
+    savedMappingApplied: 'A previously validated mapping was found and applied automatically.',
+    smartSuggestionApplied: 'Smart header suggestions were applied automatically.',
   },
   fr: {
     loading: 'Chargement du mapping...',
@@ -51,12 +59,22 @@ const copy = {
     validateImport: 'Valider et importer les lignes',
     commitFailed: 'Échec du commit',
     analysisCreationFailed: 'Échec de la création de l’analyse',
+    savedMappingApplied: 'Un mapping déjà validé a été retrouvé et appliqué automatiquement.',
+    smartSuggestionApplied: 'Des suggestions automatiques de colonnes ont été appliquées.',
   },
 } as const;
 
 function suggest(headers: string[], target: string) {
   const labels = suggestionMap[target] ?? [];
   return headers.find((header) => labels.some((label) => header.toLowerCase().includes(label.toLowerCase()))) ?? '';
+}
+
+function buildSuggestedMapping(headers: string[]) {
+  return Object.fromEntries([...REQUIRED_TARGETS, 'salesPrice'].map((target) => [target, suggest(headers, target)]));
+}
+
+function mergeMappings(base: Record<string, string>, fallback: Record<string, string>) {
+  return Object.fromEntries(Object.keys(fallback).map((key) => [key, base[key] || fallback[key] || '']));
 }
 
 export default function MappingPage() {
@@ -68,6 +86,7 @@ export default function MappingPage() {
   const [committing, setCommitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>('en');
+  const [mappingNotice, setMappingNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const storedLang = window.localStorage.getItem(LANG_STORAGE_KEY);
@@ -89,12 +108,16 @@ export default function MappingPage() {
       if (json.error) setError(json.error);
       else {
         setRecord(json);
-        const defaults = Object.fromEntries([...REQUIRED_TARGETS, 'salesPrice'].map((target) => [target, suggest(json.headers, target)]));
-        setMapping(defaults);
+        const automaticSuggestions = buildSuggestedMapping(json.headers);
+        const defaultMapping = json.suggestedMapping
+          ? mergeMappings(json.suggestedMapping, automaticSuggestions)
+          : automaticSuggestions;
+        setMapping(defaultMapping);
+        setMappingNotice(json.mappingSource === 'saved' ? t.savedMappingApplied : t.smartSuggestionApplied);
       }
       setLoading(false);
     });
-  }, [params.importId]);
+  }, [params.importId, t.savedMappingApplied, t.smartSuggestionApplied]);
 
   const missing = useMemo(() => REQUIRED_TARGETS.filter((target) => !mapping[target]), [mapping]);
 
@@ -132,6 +155,7 @@ export default function MappingPage() {
     <main className="content-wrap">
       <header className="page-head"><h1>{t.title}</h1><p>{t.subtitle}</p></header>
       <section className="card" style={{ marginTop: 16 }}>
+        {mappingNotice ? <div className="alert success" style={{ marginBottom: 12 }}>{mappingNotice}</div> : null}
         {missing.length > 0 ? <div className="alert warn" style={{ marginBottom: 12 }}>{t.requiredMissing}: {missing.join(', ')}</div> : <div className="alert success" style={{ marginBottom: 12 }}>{t.allMapped}</div>}
         {error ? <div className="alert error" style={{ marginBottom: 12 }}>{error}</div> : null}
         <div className="table-wrap">
