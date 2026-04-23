@@ -42,9 +42,12 @@ const copy = {
     scenarioNotes: 'Scenario notes (optional)',
     scenarioNotesPlaceholder: 'Example: Supplier in Turkey, faster lead time, slightly higher transport cost.',
     saveScenario: 'Save scenario',
+    savingScenario: 'Saving scenario...',
+    scenarioSaved: 'Scenario saved.',
     addScenario: 'Add scenario',
     saveAnalysis: 'Save analysis',
     savingAnalysis: 'Saving analysis...',
+    analysisSaved: 'Analysis saved.',
     compareScenarios: 'Compare scenarios',
     unableAdd: 'Unable to add scenario',
     unableSave: 'Unable to save scenario',
@@ -54,7 +57,7 @@ const copy = {
     loading: 'Chargement du builder...',
     notFound: 'Analyse introuvable',
     title: 'Builder d’analyse',
-    subtitle: 'Modifie les hypothèses baseline et alternatives, puis compare les estimations de landed cost.',
+    subtitle: 'Modifiez les hypothèses baseline et alternatives, puis comparez les estimations de landed cost.',
     details: 'Détails de l’analyse',
     analysisTitle: 'Titre de l’analyse',
     importedRows: 'Lignes importées',
@@ -69,9 +72,12 @@ const copy = {
     scenarioNotes: 'Notes du scénario (optionnel)',
     scenarioNotesPlaceholder: 'Exemple : fournisseur en Turquie, lead time plus rapide, coût transport un peu plus élevé.',
     saveScenario: 'Enregistrer le scénario',
+    savingScenario: 'Enregistrement du scénario...',
+    scenarioSaved: 'Scénario enregistré.',
     addScenario: 'Ajouter un scénario',
     saveAnalysis: 'Enregistrer l’analyse',
     savingAnalysis: 'Enregistrement de l’analyse...',
+    analysisSaved: 'Analyse enregistrée.',
     compareScenarios: 'Comparer les scénarios',
     unableAdd: 'Impossible d’ajouter le scénario',
     unableSave: 'Impossible d’enregistrer le scénario',
@@ -87,7 +93,9 @@ export default function BuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingScenarioId, setSavingScenarioId] = useState<string | null>(null);
   const [lang, setLang] = useState<Lang>('en');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const storedLang = window.localStorage.getItem(LANG_STORAGE_KEY);
@@ -105,6 +113,12 @@ export default function BuilderPage() {
   const t = useMemo(() => copy[lang], [lang]);
 
   useEffect(() => {
+    if (!successMessage) return;
+    const timeout = window.setTimeout(() => setSuccessMessage(null), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [successMessage]);
+
+  useEffect(() => {
     fetch(`/api/analyses/${params.analysisId}`)
       .then((response) => response.json())
       .then((json) => {
@@ -119,6 +133,7 @@ export default function BuilderPage() {
   }, [params.analysisId]);
 
   async function addScenario() {
+    setSuccessMessage(null);
     const response = await fetch(`/api/analyses/${params.analysisId}/scenarios`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -130,17 +145,24 @@ export default function BuilderPage() {
   }
 
   async function saveScenario(scenario: Scenario) {
+    setError(null);
+    setSuccessMessage(null);
+    setSavingScenarioId(scenario.id);
     const response = await fetch(`/api/analyses/${params.analysisId}/scenarios`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(scenario),
     });
     const json = await response.json();
+    setSavingScenarioId(null);
     if (!response.ok) return setError(json.error ?? t.unableSave);
     setData((current) => (current ? { ...current, analysis: { ...current.analysis, scenarios: json.scenarios } } : current));
+    setSuccessMessage(t.scenarioSaved);
   }
 
   async function saveAnalysis() {
+    setError(null);
+    setSuccessMessage(null);
     setSaving(true);
     const response = await fetch(`/api/analyses/${params.analysisId}`, {
       method: 'PATCH',
@@ -151,6 +173,7 @@ export default function BuilderPage() {
     setSaving(false);
     if (!response.ok) return setError(json.error ?? t.saveFailed);
     setData((current) => (current ? { ...current, analysis: json.analysis } : current));
+    setSuccessMessage(t.analysisSaved);
   }
 
   if (loading) return <main className="content-wrap"><div className="card">{t.loading}</div></main>;
@@ -326,16 +349,19 @@ export default function BuilderPage() {
             </label>
           </div>
           <div className="actions">
-            <button className="btn btn-secondary" type="button" onClick={() => saveScenario(scenario)}>{t.saveScenario}</button>
+            <button className="btn btn-secondary" type="button" onClick={() => saveScenario(scenario)} disabled={savingScenarioId === scenario.id}>
+              {savingScenarioId === scenario.id ? t.savingScenario : t.saveScenario}
+            </button>
           </div>
         </section>
       ))}
 
+      {successMessage ? <div className="alert success" style={{ marginTop: 16 }}>{successMessage}</div> : null}
       {error ? <div className="alert error" style={{ marginTop: 16 }}>{error}</div> : null}
       <div className="actions" style={{ marginTop: 16 }}>
         <button className="btn btn-secondary" type="button" onClick={addScenario}>{t.addScenario}</button>
         <button className="btn btn-primary" type="button" onClick={saveAnalysis} disabled={saving}>{saving ? t.savingAnalysis : t.saveAnalysis}</button>
-        <button className="btn btn-primary" type="button" onClick={() => router.push(`/analyses/${params.analysisId}/compare`)} disabled={data.analysis.scenarios.length < 2}>{t.compareScenarios}</button>
+        <button className="btn btn-primary" type="button" onClick={() => router.push(`/analyses/${params.analysisId}/compare`)} disabled={data.analysis.scenarios.length < 2 || saving || savingScenarioId !== null}>{t.compareScenarios}</button>
       </div>
     </main>
   );
