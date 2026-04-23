@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getImport } from '@/lib/demo-store';
+import { findSavedMappingForImport, getImport } from '@/lib/demo-store';
 
 export async function GET(_: Request, { params }: { params: Promise<{ importId: string }> }) {
   const { importId } = await params;
@@ -7,5 +7,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ importId: 
   if (!record) {
     return NextResponse.json({ error: 'Import not found' }, { status: 404 });
   }
-  return NextResponse.json(record);
+
+  const savedMapping = await findSavedMappingForImport(record.orgId, record.headers);
+
+  return NextResponse.json({
+    ...record,
+    suggestedMapping: savedMapping?.mapping ?? null,
+    mappingSource: savedMapping ? 'saved' : 'suggested',
+  });
 }
