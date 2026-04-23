@@ -14,6 +14,7 @@ const copy = {
     bullet3: 'Compare baseline and alternative scenarios in one practical decision view.',
     startTrial: 'Start free trial',
     signIn: 'Sign in',
+    viewPricing: 'View pricing',
   },
   fr: {
     subtitle: 'Comparez vos scénarios d’import, estimez le landed cost et appuyez vos décisions de sourcing avec une vision plus claire de l’impact marge.',
@@ -22,6 +23,7 @@ const copy = {
     bullet3: 'Comparez baseline et scénarios alternatifs dans une vue de décision simple et exploitable.',
     startTrial: 'Démarrer l’essai gratuit',
     signIn: 'Se connecter',
+    viewPricing: 'Voir les tarifs',
   },
 } as const;
 
@@ -57,6 +59,7 @@ export default function LandingPage() {
         </div>
         <div className="actions">
           <Link className="btn btn-primary" href="/sign-up">{t.startTrial}</Link>
+          <Link className="btn btn-secondary" href="/pricing">{t.viewPricing}</Link>
           <Link className="btn btn-secondary" href="/sign-in">{t.signIn}</Link>
         </div>
       </section>
