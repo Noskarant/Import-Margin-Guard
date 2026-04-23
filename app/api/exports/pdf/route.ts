@@ -149,6 +149,13 @@ export async function POST(request: NextRequest) {
       y -= 18;
     };
 
+    const drawCenteredCellText = (text: string, cellLeft: number, cellWidth: number, yPos: number, font: typeof regular | typeof bold, size: number) => {
+      const safeText = sanitizeText(text);
+      const textWidth = font.widthOfTextAtSize(safeText, size);
+      const x = cellLeft + Math.max((cellWidth - textWidth) / 2, 0);
+      page.drawText(safeText, { x, y: yPos, font, size, color: colors.text });
+    };
+
     page.drawText('Import Margin Guard - Comparison Summary', {
       x: left,
       y,
@@ -203,14 +210,15 @@ export async function POST(request: NextRequest) {
     const colTotal = left + 200;
     const colUnit = left + 310;
     const colDelta = left + 390;
-    const colConfidence = left + 470;
+    const confidenceCellLeft = left + 456;
+    const confidenceCellWidth = right - confidenceCellLeft - 8;
 
     page.drawRectangle({ x: left, y: y - rowHeight + 6, width: contentWidth, height: rowHeight, color: colors.header, borderColor: colors.border, borderWidth: 1 });
     page.drawText('Scenario', { x: colScenario, y: y - 9, font: bold, size: 10, color: colors.text });
     page.drawText('Total', { x: colTotal, y: y - 9, font: bold, size: 10, color: colors.text });
     page.drawText('Unit', { x: colUnit, y: y - 9, font: bold, size: 10, color: colors.text });
     page.drawText('Delta', { x: colDelta, y: y - 9, font: bold, size: 10, color: colors.text });
-    page.drawText('Confidence', { x: colConfidence, y: y - 9, font: bold, size: 10, color: colors.text });
+    drawCenteredCellText('Confidence', confidenceCellLeft, confidenceCellWidth, y - 9, bold, 10);
     y -= 30;
 
     sorted.slice(0, 8).forEach((item, index) => {
@@ -222,7 +230,7 @@ export async function POST(request: NextRequest) {
       page.drawText(formatCurrency(item.summary.landedTotal, locale, currency), { x: colTotal, y, font: regular, size: 9.5, color: colors.text });
       page.drawText(formatCurrency(item.summary.landedUnitWeighted, locale, currency), { x: colUnit, y, font: regular, size: 9.5, color: colors.text });
       page.drawText(sanitizeText(`${delta >= 0 ? '+' : ''}${formatCurrency(delta, locale, currency)}`), { x: colDelta, y, font: regular, size: 9.5, color: colors.text });
-      page.drawText(confidenceLabel(item.summary.marginPct), { x: colConfidence, y, font: regular, size: 9.5, color: colors.text });
+      drawCenteredCellText(confidenceLabel(item.summary.marginPct), confidenceCellLeft, confidenceCellWidth, y, regular, 9.5);
       y -= 18;
     });
 
