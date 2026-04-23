@@ -16,13 +16,19 @@ const REQUIRED_TARGETS = [
 
 type Mapping = Record<string, string>;
 
-const INCOTERMS = new Set(['EXW', 'FOB', 'CIF', 'DDP', 'FCA']);
+const INCOTERMS = new Set(['EXW', 'FCA', 'FOB', 'CIF', 'DDP']);
 
 function parseFrenchNumber(value: string | undefined, field: string) {
   const normalized = (value ?? '').trim().replace(/\s/g, '').replace(',', '.');
   const parsed = Number(normalized);
   if (Number.isNaN(parsed)) throw new Error(`Invalid numeric value for ${field}`);
   return parsed;
+}
+
+function parseOptionalFrenchNumber(value: string | undefined, field: string) {
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) return undefined;
+  return parseFrenchNumber(trimmed, field);
 }
 
 export async function POST(request: NextRequest) {
@@ -57,6 +63,8 @@ export async function POST(request: NextRequest) {
         incoterm,
         ancillaryFees: parseFrenchNumber(row[mapping.ancillaryFees], 'ancillaryFees'),
         salesPrice: row[mapping.salesPrice] ? parseFrenchNumber(row[mapping.salesPrice], 'salesPrice') : undefined,
+        weightKg: mapping.weightKg ? parseOptionalFrenchNumber(row[mapping.weightKg], 'weightKg') : undefined,
+        volumeM3: mapping.volumeM3 ? parseOptionalFrenchNumber(row[mapping.volumeM3], 'volumeM3') : undefined,
       };
     });
 
