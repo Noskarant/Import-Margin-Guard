@@ -50,16 +50,40 @@ export type DemoAnalysis = {
   createdBy: string;
 };
 
+export type DemoSavedMapping = {
+  id: string;
+  orgId: string;
+  headers: string[];
+  mapping: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type DemoDb = {
   users: DemoUser[];
   organizations: DemoOrg[];
   imports: DemoImport[];
   analyses: DemoAnalysis[];
+  savedMappings: DemoSavedMapping[];
 };
 
 const DB_PATH = path.join(process.cwd(), 'data', 'demo-db.json');
 
-const initialDb: DemoDb = { users: [], organizations: [], imports: [], analyses: [] };
+const initialDb: DemoDb = { users: [], organizations: [], imports: [], analyses: [], savedMappings: [] };
+
+function normalizeHeader(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function normalizeHeaderSet(headers: string[]) {
+  return [...headers].map(normalizeHeader).sort();
+}
+
+function sameHeaderSignature(a: string[], b: string[]) {
+  const aa = normalizeHeaderSet(a);
+  const bb = normalizeHeaderSet(b);
+  return aa.length === bb.length && aa.every((item, index) => item === bb[index]);
+}
 
 async function ensureDb() {
   await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
@@ -73,7 +97,14 @@ async function ensureDb() {
 export async function readDb(): Promise<DemoDb> {
   await ensureDb();
   const content = await fs.readFile(DB_PATH, 'utf-8');
-  return JSON.parse(content) as DemoDb;
+  const db = JSON.parse(content) as Partial<DemoDb>;
+  return {
+    users: db.users ?? [],
+    organizations: db.organizations ?? [],
+    imports: db.imports ?? [],
+    analyses: db.analyses ?? [],
+    savedMappings: db.savedMappings ?? [],
+  } satisfies DemoDb;
 }
 
 export async function writeDb(db: DemoDb): Promise<void> {
@@ -141,6 +172,49 @@ export async function commitImport(importId: string, rows: DemoImportRow[]) {
   record.status = 'mapped';
   await writeDb(db);
   return record;
+}
+
+export async function saveOrgMapping(input: { orgId: string; headers: string[]; mapping: Record<string, string> }) {
+  const db = await readDb();
+  const now = new Date().toISOString();
+  const existing = db.savedMappings.find((item) => item.orgId === input.orgId && sameHeaderSignature(item.headers, input.headers));
+
+  if (existing) {
+    existing.headers = input.headers;
+    existing.mapping = input.mapping;
+    existing.updatedAt = now;
+    await writeDb(db);
+    return existing;
+  }
+
+  const savedMapping: DemoSavedMapping = {
+    id: randomUUID(),
+    orgId: input.orgId,
+    headers: input.headers,
+    mapping: input.mapping,
+    createdAt: now,
+    updatedAt: now,
+  };
+  db.savedMappings.push(savedMapping);
+  await writeDb(db);
+  return savedMapping;
+}
+
+export async function findSavedMappingForImport(orgId: string, headers: string[]) {
+  const db = await readDb();
+  const normalizedCurrentHeaders = new Set(headers.map(normalizeHeader));
+
+  const candidates = db.savedMappings
+    .filter((item) => item.orgId === orgId)
+    .map((item) => {
+      const compatibleEntries = Object.entries(item.mapping).filter(([, sourceHeader]) => normalizedCurrentHeaders.has(normalizeHeader(sourceHeader)));
+      const score = compatibleEntries.length;
+      return { item, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || b.item.updatedAt.localeCompare(a.item.updatedAt));
+
+  return candidates[0]?.item;
 }
 
 export async function createAnalysis(input: { orgId: string; importId: string; title: string; createdBy: string }) {
