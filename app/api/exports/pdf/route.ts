@@ -84,82 +84,160 @@ export async function POST(request: NextRequest) {
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
     const regular = await pdf.embedFont(StandardFonts.Helvetica);
 
-    let y = 800;
-    const left = 48;
-    const line = 14;
+    const colors = {
+      text: rgb(0.06, 0.09, 0.16),
+      muted: rgb(0.35, 0.38, 0.45),
+      border: rgb(0.86, 0.89, 0.93),
+      surface: rgb(0.97, 0.98, 0.99),
+      header: rgb(0.93, 0.95, 0.98),
+      accent: rgb(0.11, 0.31, 0.85),
+    };
 
-    const drawTextBlock = (text: string, size = 10, maxWidth = 500, color = rgb(0.06, 0.09, 0.16), font = regular) => {
-      const lines = sanitizeText(text).split('\n');
-      for (const entry of lines) {
-        page.drawText(entry, { x: left, y, font, size, color, maxWidth, lineHeight: line });
-        y -= line;
+    let y = 796;
+    const left = 48;
+    const right = 547;
+    const contentWidth = right - left;
+
+    const drawRule = (offset = 0) => {
+      page.drawLine({
+        start: { x: left, y: y - offset },
+        end: { x: right, y: y - offset },
+        thickness: 1,
+        color: colors.border,
+      });
+    };
+
+    const drawWrappedText = (
+      text: string,
+      options?: { x?: number; yPos?: number; size?: number; maxWidth?: number; font?: typeof regular; color?: ReturnType<typeof rgb>; lineGap?: number },
+    ) => {
+      const x = options?.x ?? left;
+      const yPos = options?.yPos ?? y;
+      const size = options?.size ?? 10;
+      const maxWidth = options?.maxWidth ?? contentWidth;
+      const font = options?.font ?? regular;
+      const color = options?.color ?? colors.text;
+      const lineGap = options?.lineGap ?? 4;
+      const safeText = sanitizeText(text);
+      const words = safeText.split(/\s+/);
+      const lines: string[] = [];
+      let current = '';
+
+      for (const word of words) {
+        const next = current ? `${current} ${word}` : word;
+        if (font.widthOfTextAtSize(next, size) <= maxWidth) {
+          current = next;
+        } else {
+          if (current) lines.push(current);
+          current = word;
+        }
       }
+      if (current) lines.push(current);
+
+      let currentY = yPos;
+      for (const line of lines) {
+        page.drawText(line, { x, y: currentY, font, size, color });
+        currentY -= size + lineGap;
+      }
+      return currentY;
+    };
+
+    const drawSectionTitle = (title: string) => {
+      page.drawText(title, { x: left, y, font: bold, size: 13, color: colors.text });
+      y -= 8;
+      drawRule(0);
+      y -= 18;
     };
 
     page.drawText('Import Margin Guard - Comparison Summary', {
       x: left,
       y,
       font: bold,
-      size: 16,
-      color: rgb(0.06, 0.09, 0.16),
+      size: 18,
+      color: colors.text,
     });
-    y -= 28;
-
-    drawTextBlock(`Analysis: ${analysis.title}`, 11);
-    drawTextBlock(`Organization: ${organization?.name ?? 'N/A'}`, 11);
-    drawTextBlock(`Export date: ${new Date().toLocaleDateString(locale)}`, 11);
-    y -= 10;
-
-    page.drawText('Executive summary', { x: left, y, font: bold, size: 12 });
-    y -= 18;
-    drawTextBlock(`Recommended scenario: ${best.scenarioName}`, 10);
-    drawTextBlock(`Estimated savings vs baseline: ${formatCurrency(savings, locale, currency)} (${savingsPct.toFixed(1)}%)`, 10);
-    if (typeof marginImpact === 'number') {
-      drawTextBlock(`Estimated gross margin vs baseline: ${marginImpact >= 0 ? '+' : ''}${marginImpact.toFixed(1)} pts`, 10);
-    } else {
-      drawTextBlock('Estimated gross margin vs baseline: not available', 10);
-    }
-    if (best.notes) {
-      drawTextBlock(`Scenario notes: ${best.notes}`, 10);
-    }
-    y -= 10;
-
-    page.drawText('Compact comparison table', { x: left, y, font: bold, size: 12 });
-    y -= 18;
-
-    page.drawText('Scenario', { x: left, y, font: bold, size: 10 });
-    page.drawText('Total', { x: 240, y, font: bold, size: 10 });
-    page.drawText('Unit', { x: 340, y, font: bold, size: 10 });
-    page.drawText('Delta', { x: 420, y, font: bold, size: 10 });
-    page.drawText('Confidence', { x: 500, y, font: bold, size: 10 });
-    y -= 14;
-
-    for (const item of sorted.slice(0, 8)) {
-      const delta = item.summary.landedTotal - baseline.summary.landedTotal;
-      page.drawText(sanitizeText(item.scenarioName.slice(0, 28)), { x: left, y, font: regular, size: 9 });
-      page.drawText(formatCurrency(item.summary.landedTotal, locale, currency), { x: 240, y, font: regular, size: 9 });
-      page.drawText(formatCurrency(item.summary.landedUnitWeighted, locale, currency), { x: 340, y, font: regular, size: 9 });
-      page.drawText(sanitizeText(`${delta >= 0 ? '+' : ''}${formatCurrency(delta, locale, currency)}`), { x: 420, y, font: regular, size: 9 });
-      page.drawText(confidenceLabel(item.summary.marginPct), { x: 500, y, font: regular, size: 9 });
-      y -= 13;
-    }
-
-    y -= 14;
-    page.drawText('Recommendation note', { x: left, y, font: bold, size: 12 });
-    y -= 18;
-    drawTextBlock(
-      `Based on the assumptions entered on ${new Date().toLocaleDateString(locale)}, ${best.scenarioName} shows the lowest estimated landed cost per unit. Estimated savings vs baseline: ${formatCurrency(savings, locale, currency)} (${savingsPct.toFixed(1)}%).`,
-      10,
-    );
-    y -= 10;
-
-    page.drawText('Disclaimer', { x: left, y, font: bold, size: 11 });
+    page.drawText('Operational export', {
+      x: right - 88,
+      y: y + 2,
+      font: regular,
+      size: 10,
+      color: colors.accent,
+    });
     y -= 16;
-    drawTextBlock(
+    drawRule();
+    y -= 22;
+
+    const metaRows = [
+      ['Analysis', analysis.title],
+      ['Organization', organization?.name ?? 'N/A'],
+      ['Export date', new Date().toLocaleDateString(locale)],
+    ];
+
+    for (const [label, value] of metaRows) {
+      page.drawText(`${label}:`, { x: left, y, font: bold, size: 10.5, color: colors.text });
+      page.drawText(sanitizeText(value), { x: left + 92, y, font: regular, size: 10.5, color: colors.text });
+      y -= 16;
+    }
+    y -= 8;
+
+    page.drawRectangle({ x: left, y: y - 78, width: contentWidth, height: 86, color: colors.surface, borderColor: colors.border, borderWidth: 1 });
+    page.drawText('Executive summary', { x: left + 12, y: y - 18, font: bold, size: 13, color: colors.text });
+    page.drawText(`Recommended scenario: ${sanitizeText(best.scenarioName)}`, { x: left + 12, y: y - 38, font: regular, size: 10.5, color: colors.text });
+    page.drawText(`Estimated savings vs baseline: ${formatCurrency(savings, locale, currency)} (${savingsPct.toFixed(1)}%)`, { x: left + 12, y: y - 54, font: regular, size: 10.5, color: colors.text });
+    page.drawText(
+      `Estimated gross margin vs baseline: ${typeof marginImpact === 'number' ? `${marginImpact >= 0 ? '+' : ''}${marginImpact.toFixed(1)} pts` : 'Not available'}`,
+      { x: left + 12, y: y - 70, font: regular, size: 10.5, color: colors.text },
+    );
+    y -= 102;
+
+    if (best.notes) {
+      drawSectionTitle('Scenario note');
+      y = drawWrappedText(best.notes, { size: 10.5, color: colors.text, lineGap: 5 });
+      y -= 14;
+    }
+
+    drawSectionTitle('Compact comparison table');
+
+    const rowHeight = 22;
+    const colScenario = left + 8;
+    const colTotal = left + 200;
+    const colUnit = left + 310;
+    const colDelta = left + 390;
+    const colConfidence = left + 470;
+
+    page.drawRectangle({ x: left, y: y - rowHeight + 6, width: contentWidth, height: rowHeight, color: colors.header, borderColor: colors.border, borderWidth: 1 });
+    page.drawText('Scenario', { x: colScenario, y: y - 9, font: bold, size: 10, color: colors.text });
+    page.drawText('Total', { x: colTotal, y: y - 9, font: bold, size: 10, color: colors.text });
+    page.drawText('Unit', { x: colUnit, y: y - 9, font: bold, size: 10, color: colors.text });
+    page.drawText('Delta', { x: colDelta, y: y - 9, font: bold, size: 10, color: colors.text });
+    page.drawText('Confidence', { x: colConfidence, y: y - 9, font: bold, size: 10, color: colors.text });
+    y -= 30;
+
+    sorted.slice(0, 8).forEach((item, index) => {
+      const delta = item.summary.landedTotal - baseline.summary.landedTotal;
+      if (index % 2 === 0) {
+        page.drawRectangle({ x: left, y: y - 12, width: contentWidth, height: 18, color: colors.surface });
+      }
+      page.drawText(sanitizeText(item.scenarioName.slice(0, 28)), { x: colScenario, y, font: regular, size: 9.5, color: colors.text });
+      page.drawText(formatCurrency(item.summary.landedTotal, locale, currency), { x: colTotal, y, font: regular, size: 9.5, color: colors.text });
+      page.drawText(formatCurrency(item.summary.landedUnitWeighted, locale, currency), { x: colUnit, y, font: regular, size: 9.5, color: colors.text });
+      page.drawText(sanitizeText(`${delta >= 0 ? '+' : ''}${formatCurrency(delta, locale, currency)}`), { x: colDelta, y, font: regular, size: 9.5, color: colors.text });
+      page.drawText(confidenceLabel(item.summary.marginPct), { x: colConfidence, y, font: regular, size: 9.5, color: colors.text });
+      y -= 18;
+    });
+
+    y -= 12;
+    drawSectionTitle('Recommendation note');
+    y = drawWrappedText(
+      `Based on the assumptions entered on ${new Date().toLocaleDateString(locale)}, ${best.scenarioName} shows the lowest estimated landed cost per unit. Estimated savings vs baseline: ${formatCurrency(savings, locale, currency)} (${savingsPct.toFixed(1)}%).${typeof marginImpact === 'number' ? ` Estimated gross margin vs baseline: ${marginImpact >= 0 ? '+' : ''}${marginImpact.toFixed(1)} pts.` : ''}`,
+      { size: 10.5, lineGap: 5 },
+    );
+
+    y -= 18;
+    drawSectionTitle('Disclaimer');
+    y = drawWrappedText(
       'This document is an operational estimate based on user-provided assumptions (purchase price, transport, duty, ancillary fees, and optional sales prices). It is not legal, customs, tax, or accounting advice.',
-      9,
-      500,
-      rgb(0.35, 0.38, 0.45),
+      { size: 9.5, color: colors.muted, lineGap: 5 },
     );
 
     const bytes = await pdf.save();
