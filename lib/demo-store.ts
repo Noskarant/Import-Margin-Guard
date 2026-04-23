@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin, getSupabasePublic } from '@/lib/supabase';
+import type { CostAllocationMethod } from '@/features/scenarios/lib/calculate';
 
 export type DemoUser = { id: string; email: string; password: string; createdAt: string };
 export type DemoOrg = { id: string; name: string; country: string; currency: string; ownerUserId: string; createdAt: string };
@@ -16,6 +17,8 @@ export type DemoImportRow = {
   incoterm: string;
   ancillaryFees: number;
   salesPrice?: number;
+  weightKg?: number;
+  volumeM3?: number;
 };
 export type DemoImport = {
   id: string;
@@ -37,6 +40,14 @@ export type DemoScenario = {
   transportMultiplier: number;
   dutyRateOverride?: number;
   ancillaryMultiplier: number;
+  reportingCurrency: string;
+  exchangeRate: number;
+  costAllocationMethod: CostAllocationMethod;
+  incotermOverride?: string;
+  originCost: number;
+  mainFreightCost: number;
+  insuranceCost: number;
+  destinationCost: number;
 };
 export type DemoAnalysis = {
   id: string;
@@ -118,6 +129,14 @@ function mapScenarioRow(row: any): DemoScenario {
     transportMultiplier: Number(overrides.transportMultiplier ?? 1),
     ancillaryMultiplier: Number(overrides.ancillaryMultiplier ?? 1),
     dutyRateOverride: overrides.dutyRateOverride == null ? undefined : Number(overrides.dutyRateOverride),
+    reportingCurrency: String(overrides.reportingCurrency ?? 'EUR').toUpperCase(),
+    exchangeRate: Number(overrides.exchangeRate ?? 1),
+    costAllocationMethod: (overrides.costAllocationMethod ?? 'manual') as CostAllocationMethod,
+    incotermOverride: overrides.incotermOverride ? String(overrides.incotermOverride).toUpperCase() : undefined,
+    originCost: Number(overrides.originCost ?? 0),
+    mainFreightCost: Number(overrides.mainFreightCost ?? 0),
+    insuranceCost: Number(overrides.insuranceCost ?? 0),
+    destinationCost: Number(overrides.destinationCost ?? 0),
   };
 }
 
@@ -265,9 +284,35 @@ export async function createAnalysis(input: { orgId: string; importId: string; t
     updated_by: input.createdBy,
   }).select('*').single();
   if (analysisError) throw new Error(analysisError.message);
+  const baselineDefaults = {
+    notes: 'Current reference assumptions',
+    purchasePriceMultiplier: 1,
+    transportMultiplier: 1,
+    ancillaryMultiplier: 1,
+    reportingCurrency: 'EUR',
+    exchangeRate: 1,
+    costAllocationMethod: 'manual',
+    originCost: 0,
+    mainFreightCost: 0,
+    insuranceCost: 0,
+    destinationCost: 0,
+  };
+  const scenarioBDefaults = {
+    notes: 'Alternative sourcing assumptions',
+    purchasePriceMultiplier: 1,
+    transportMultiplier: 1,
+    ancillaryMultiplier: 1,
+    reportingCurrency: 'EUR',
+    exchangeRate: 1,
+    costAllocationMethod: 'manual',
+    originCost: 0,
+    mainFreightCost: 0,
+    insuranceCost: 0,
+    destinationCost: 0,
+  };
   const scenariosPayload = [
-    { id: randomUUID(), analysis_id: analysisRow.id, name: 'Baseline', is_baseline: true, rank_order: 0, created_by: input.createdBy, assumption_overrides: { notes: 'Current reference assumptions', purchasePriceMultiplier: 1, transportMultiplier: 1, ancillaryMultiplier: 1 } },
-    { id: randomUUID(), analysis_id: analysisRow.id, name: 'Scenario B', is_baseline: false, rank_order: 1, created_by: input.createdBy, assumption_overrides: { notes: 'Alternative sourcing assumptions', purchasePriceMultiplier: 1, transportMultiplier: 1, ancillaryMultiplier: 1 } },
+    { id: randomUUID(), analysis_id: analysisRow.id, name: 'Baseline', is_baseline: true, rank_order: 0, created_by: input.createdBy, assumption_overrides: baselineDefaults },
+    { id: randomUUID(), analysis_id: analysisRow.id, name: 'Scenario B', is_baseline: false, rank_order: 1, created_by: input.createdBy, assumption_overrides: scenarioBDefaults },
   ];
   const { data: scenarioRows, error: scenarioError } = await admin.from('scenarios').insert(scenariosPayload).select('*');
   if (scenarioError) throw new Error(scenarioError.message);
@@ -313,6 +358,14 @@ export async function saveAnalysis(analysisId: string, updater: (analysis: DemoA
       transportMultiplier: scenario.transportMultiplier,
       ancillaryMultiplier: scenario.ancillaryMultiplier,
       dutyRateOverride: scenario.dutyRateOverride ?? null,
+      reportingCurrency: scenario.reportingCurrency,
+      exchangeRate: scenario.exchangeRate,
+      costAllocationMethod: scenario.costAllocationMethod,
+      incotermOverride: scenario.incotermOverride ?? null,
+      originCost: scenario.originCost,
+      mainFreightCost: scenario.mainFreightCost,
+      insuranceCost: scenario.insuranceCost,
+      destinationCost: scenario.destinationCost,
     },
   }));
   const { data: scenarioRows, error: insertError } = await admin.from('scenarios').insert(scenarioPayload).select('*');
