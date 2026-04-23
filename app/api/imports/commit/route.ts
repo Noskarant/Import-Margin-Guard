@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { commitImport } from '@/lib/demo-store';
+import { commitImport, getImport, saveOrgMapping } from '@/lib/demo-store';
 
 const REQUIRED_TARGETS = [
   'sku',
@@ -60,7 +60,12 @@ export async function POST(request: NextRequest) {
       };
     });
 
+    const record = await getImport(importId);
+    if (!record) return NextResponse.json({ error: 'Import not found' }, { status: 404 });
+
     await commitImport(importId, normalizedRows);
+    await saveOrgMapping({ orgId: record.orgId, headers: record.headers, mapping });
+
     return NextResponse.json({ importId, rowCount: normalizedRows.length });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
