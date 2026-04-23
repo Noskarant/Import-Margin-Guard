@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
-import { saveAnalysis } from '@/lib/demo-store';
+import { findOrgForUser, getAnalysis, saveAnalysis } from '@/lib/demo-store';
+import { requireUserId } from '@/lib/auth';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ analysisId: string }> }) {
   try {
+    const userId = await requireUserId();
+    const org = await findOrgForUser(userId);
+    if (!org) return NextResponse.json({ error: 'Create organization first' }, { status: 400 });
+
     const { analysisId } = await params;
+    const existing = await getAnalysis(analysisId);
+    if (!existing || existing.orgId !== org.id) return NextResponse.json({ error: 'Analysis not found' }, { status: 404 });
+
     const body = await request.json();
     const name = String(body.name ?? '').trim() || 'Scenario';
 
@@ -22,13 +30,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({ scenarios: analysis.scenarios });
   } catch (error) {
+    if ((error as Error).message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ analysisId: string }> }) {
   try {
+    const userId = await requireUserId();
+    const org = await findOrgForUser(userId);
+    if (!org) return NextResponse.json({ error: 'Create organization first' }, { status: 400 });
+
     const { analysisId } = await params;
+    const existing = await getAnalysis(analysisId);
+    if (!existing || existing.orgId !== org.id) return NextResponse.json({ error: 'Analysis not found' }, { status: 404 });
+
     const body = await request.json();
     const scenarioId = String(body.scenarioId ?? body.id ?? '');
 
@@ -45,6 +61,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     return NextResponse.json({ scenarios: analysis.scenarios });
   } catch (error) {
+    if ((error as Error).message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
 }
