@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 type Lang = 'en' | 'fr';
+type BillingPlan = 'starter' | 'pro' | 'pilot';
 const LANG_STORAGE_KEY = 'img_lang';
 
 const copy = {
@@ -56,7 +57,7 @@ const copy = {
     faq4q: 'What is the pilot launch?',
     faq4a: 'The pilot launch is a guided entry offer: 3 months of Pro access for €199, with direct feedback included.',
     backHome: 'Back to home',
-    viewPricing: 'View pricing',
+    loadingCheckout: 'Redirecting to checkout...',
   },
   fr: {
     title: 'Des tarifs pensés pour les décisions de coût import',
@@ -107,7 +108,7 @@ const copy = {
     faq4q: 'Qu’est-ce que le pilot launch ?',
     faq4a: 'Le pilot launch est une offre d’entrée accompagnée : 3 mois d’accès Pro pour 199 €, avec feedback direct inclus.',
     backHome: 'Retour à l’accueil',
-    viewPricing: 'Voir les tarifs',
+    loadingCheckout: 'Redirection vers le checkout...',
   },
 } as const;
 
@@ -117,6 +118,8 @@ function featureValueLabel(value: boolean, t: (typeof copy)['en']) {
 
 export default function PricingPage() {
   const [lang, setLang] = useState<Lang>('en');
+  const [loadingPlan, setLoadingPlan] = useState<BillingPlan | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const storedLang = window.localStorage.getItem(LANG_STORAGE_KEY);
@@ -133,8 +136,28 @@ export default function PricingPage() {
 
   const t = useMemo(() => copy[lang], [lang]);
 
+  async function startCheckout(plan: BillingPlan) {
+    try {
+      setError(null);
+      setLoadingPlan(plan);
+      const response = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error ?? 'Checkout failed');
+      if (!json.url) throw new Error('Checkout URL missing');
+      window.location.href = json.url;
+    } catch (err) {
+      setError((err as Error).message);
+      setLoadingPlan(null);
+    }
+  }
+
   const plans = [
     {
+      key: 'starter' as BillingPlan,
       name: t.starter,
       price: '39 €',
       description: t.starterDesc,
@@ -144,11 +167,11 @@ export default function PricingPage() {
       history: t.days30,
       support: t.email,
       cta: t.startStarter,
-      href: '/sign-up',
       featured: false,
       badge: null,
     },
     {
+      key: 'pro' as BillingPlan,
       name: t.pro,
       price: '79 €',
       description: t.proDesc,
@@ -158,11 +181,11 @@ export default function PricingPage() {
       history: t.full,
       support: t.priority,
       cta: t.startPro,
-      href: '/sign-up',
       featured: true,
       badge: t.mostPractical,
     },
     {
+      key: 'team' as const,
       name: t.team,
       price: '149 €',
       description: t.teamDesc,
@@ -198,9 +221,13 @@ export default function PricingPage() {
               <p style={{ margin: '10px 0 6px' }}>{t.pilotMeta}</p>
               <p className="muted" style={{ margin: 0 }}>{t.pilotText}</p>
             </div>
-            <a className="btn btn-primary" href="mailto:hello@importmarginguard.com?subject=Import%20Margin%20Guard%20Pilot">{t.startPilot}</a>
+            <button className="btn btn-primary" type="button" onClick={() => startCheckout('pilot')} disabled={loadingPlan !== null}>
+              {loadingPlan === 'pilot' ? t.loadingCheckout : t.startPilot}
+            </button>
           </div>
         </section>
+
+        {error ? <div className="alert error" style={{ marginTop: 16 }}>{error}</div> : null}
 
         <section className="grid-3" style={{ marginTop: 24 }}>
           {plans.map((plan) => (
@@ -223,10 +250,12 @@ export default function PricingPage() {
                 <div className="highlight-item"><strong>{t.support}</strong>{plan.support}</div>
               </div>
               <div className="actions" style={{ marginTop: 20 }}>
-                {plan.href.startsWith('mailto:') ? (
+                {'href' in plan ? (
                   <a className={`btn ${plan.featured ? 'btn-primary' : 'btn-secondary'}`} href={plan.href}>{plan.cta}</a>
                 ) : (
-                  <Link className={`btn ${plan.featured ? 'btn-primary' : 'btn-secondary'}`} href={plan.href}>{plan.cta}</Link>
+                  <button className={`btn ${plan.featured ? 'btn-primary' : 'btn-secondary'}`} type="button" onClick={() => startCheckout(plan.key)} disabled={loadingPlan !== null}>
+                    {loadingPlan === plan.key ? t.loadingCheckout : plan.cta}
+                  </button>
                 )}
               </div>
             </article>
