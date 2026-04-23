@@ -25,6 +25,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         purchasePriceMultiplier: 1,
         transportMultiplier: 1,
         ancillaryMultiplier: 1,
+        reportingCurrency: 'EUR',
+        exchangeRate: 1,
+        costAllocationMethod: 'manual',
+        incotermOverride: undefined,
+        originCost: 0,
+        mainFreightCost: 0,
+        insuranceCost: 0,
+        destinationCost: 0,
       });
     });
 
@@ -57,6 +65,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       scenario.transportMultiplier = Number(body.transportMultiplier ?? scenario.transportMultiplier);
       scenario.ancillaryMultiplier = Number(body.ancillaryMultiplier ?? scenario.ancillaryMultiplier);
       scenario.dutyRateOverride = body.dutyRateOverride === '' || body.dutyRateOverride == null ? undefined : Number(body.dutyRateOverride);
+      scenario.reportingCurrency = String(body.reportingCurrency ?? scenario.reportingCurrency ?? 'EUR').toUpperCase();
+      scenario.exchangeRate = Number(body.exchangeRate ?? scenario.exchangeRate ?? 1);
+      scenario.costAllocationMethod = body.costAllocationMethod ?? scenario.costAllocationMethod ?? 'manual';
+      scenario.incotermOverride = body.incotermOverride ? String(body.incotermOverride).toUpperCase() : undefined;
+      scenario.originCost = Number(body.originCost ?? scenario.originCost ?? 0);
+      scenario.mainFreightCost = Number(body.mainFreightCost ?? scenario.mainFreightCost ?? 0);
+      scenario.insuranceCost = Number(body.insuranceCost ?? scenario.insuranceCost ?? 0);
+      scenario.destinationCost = Number(body.destinationCost ?? scenario.destinationCost ?? 0);
     });
 
     return NextResponse.json({ scenarios: analysis.scenarios });
