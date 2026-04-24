@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { commitImport, getImport, saveOrgMapping } from '@/lib/demo-store';
+import { commitImport, getImport, saveOrgMapping } from '@/lib/data-store';
 
 const REQUIRED_TARGETS = [
   'sku',
