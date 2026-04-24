@@ -1,4 +1,5 @@
 export type CostAllocationMethod = 'manual' | 'by_quantity' | 'by_weight' | 'by_volume' | 'by_value';
+export type ScenarioFxRates = Record<string, number>;
 
 export type ScenarioInputRow = {
   unitPurchasePrice: number;
@@ -16,12 +17,14 @@ export type ScenarioInputRow = {
 export type ScenarioCalculationOptions = {
   reportingCurrency?: string;
   exchangeRate?: number;
+  exchangeRates?: ScenarioFxRates;
   costAllocationMethod?: CostAllocationMethod;
   incotermOverride?: string;
   originCost?: number;
   mainFreightCost?: number;
   insuranceCost?: number;
   destinationCost?: number;
+  marginCoverageThreshold?: number;
 };
 
 export type ScenarioSummary = {
@@ -37,11 +40,14 @@ export type ScenarioSummary = {
   dutyTotal: number;
   allocationMethod: CostAllocationMethod;
   incotermMode: 'imported' | 'override';
+  marginCoverageThreshold: number;
+  marginCoverageRatio: number;
 };
 
 type RowComputation = {
   purchaseCost: number;
   baseTransportCost: number;
+  ancillaryCost: number;
   allocatedApproachCost: number;
   dutyCost: number;
   landedTotal: number;
@@ -67,18 +73,41 @@ function normalizeCurrency(value?: string) {
   return normalized || 'EUR';
 }
 
+function normalizeFxRates(rates?: ScenarioFxRates) {
+  return Object.fromEntries(
+    Object.entries(rates ?? {})
+      .map(([currency, rate]) => [normalizeCurrency(currency), Number(rate)])
+      .filter(([, rate]) => Number.isFinite(rate) && rate > 0),
+  ) as ScenarioFxRates;
+}
+
 function ensurePositive(name: string, value: number) {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${name} must be a valid non-negative number`);
   }
 }
 
-function getExchangeRate(rowCurrency: string, reportingCurrency: string, configuredRate: number) {
-  if (rowCurrency === reportingCurrency) return 1;
-  if (!Number.isFinite(configuredRate) || configuredRate <= 0) {
-    throw new Error('exchangeRate must be greater than zero when a row currency differs from the reporting currency');
+function ensureThreshold(value: number) {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error('marginCoverageThreshold must be between 0 and 1');
   }
-  return configuredRate;
+}
+
+function getExchangeRate(
+  rowCurrency: string,
+  reportingCurrency: string,
+  configuredRates: ScenarioFxRates,
+  fallbackRate: number,
+) {
+  if (rowCurrency === reportingCurrency) return 1;
+  const configuredRate = configuredRates[rowCurrency];
+  if (Number.isFinite(configuredRate) && configuredRate > 0) {
+    return configuredRate;
+  }
+  if (!Number.isFinite(fallbackRate) || fallbackRate <= 0) {
+    throw new Error(`Missing FX rate for ${rowCurrency} -> ${reportingCurrency}`);
+  }
+  return fallbackRate;
 }
 
 function getAllocationBasis(
@@ -151,9 +180,11 @@ export function calculateScenario(rows: ScenarioInputRow[], options: ScenarioCal
   }
 
   const reportingCurrency = normalizeCurrency(options.reportingCurrency);
-  const exchangeRate = options.exchangeRate ?? 1;
+  const fallbackExchangeRate = options.exchangeRate ?? 1;
+  const exchangeRates = normalizeFxRates(options.exchangeRates);
   const allocationMethod = options.costAllocationMethod ?? 'manual';
   const incotermMode = options.incotermOverride ? 'override' : 'imported';
+  const marginCoverageThreshold = options.marginCoverageThreshold ?? 0.8;
   const scenarioCosts = {
     originCost: options.originCost ?? 0,
     mainFreightCost: options.mainFreightCost ?? 0,
@@ -165,6 +196,7 @@ export function calculateScenario(rows: ScenarioInputRow[], options: ScenarioCal
   ensurePositive('mainFreightCost', scenarioCosts.mainFreightCost);
   ensurePositive('insuranceCost', scenarioCosts.insuranceCost);
   ensurePositive('destinationCost', scenarioCosts.destinationCost);
+  ensureThreshold(marginCoverageThreshold);
 
   const bases = rows.map((row) => {
     if (row.quantity <= 0) {
@@ -178,13 +210,12 @@ export function calculateScenario(rows: ScenarioInputRow[], options: ScenarioCal
     if (typeof row.volumeM3 === 'number') ensurePositive('volumeM3', row.volumeM3);
 
     const rowCurrency = normalizeCurrency(row.currency);
-    const fxRate = getExchangeRate(rowCurrency, reportingCurrency, exchangeRate);
+    const fxRate = getExchangeRate(rowCurrency, reportingCurrency, exchangeRates, fallbackExchangeRate);
     const effectiveIncoterm = normalizeIncoterm(options.incotermOverride ?? row.incoterm);
     const allocationBasis = getAllocationBasis(row, allocationMethod, fxRate);
 
     return {
       row,
-      rowCurrency,
       fxRate,
       effectiveIncoterm,
       allocationBasis,
@@ -223,6 +254,7 @@ export function calculateScenario(rows: ScenarioInputRow[], options: ScenarioCal
     return {
       purchaseCost,
       baseTransportCost,
+      ancillaryCost,
       allocatedApproachCost,
       dutyCost,
       landedTotal,
@@ -236,7 +268,8 @@ export function calculateScenario(rows: ScenarioInputRow[], options: ScenarioCal
   const landedUnitWeighted = landedTotal / quantityTotal;
 
   const margins = computed.map((row) => row.marginPct).filter((value): value is number => typeof value === 'number');
-  const marginPct = margins.length >= Math.ceil(rows.length * 0.8) ? margins.reduce((a, b) => a + b, 0) / margins.length : undefined;
+  const marginCoverageRatio = rows.length > 0 ? margins.length / rows.length : 0;
+  const marginPct = marginCoverageRatio >= marginCoverageThreshold ? margins.reduce((a, b) => a + b, 0) / margins.length : undefined;
 
   return {
     landedTotal,
@@ -246,13 +279,12 @@ export function calculateScenario(rows: ScenarioInputRow[], options: ScenarioCal
     currency: reportingCurrency,
     purchaseTotal: computed.reduce((acc, row) => acc + row.purchaseCost, 0),
     baseTransportTotal: computed.reduce((acc, row) => acc + row.baseTransportCost, 0),
-    ancillaryTotal: rows.reduce((acc, row, index) => {
-      const fxRate = bases[index]?.fxRate ?? 1;
-      return acc + row.ancillaryFees * fxRate;
-    }, 0),
+    ancillaryTotal: computed.reduce((acc, row) => acc + row.ancillaryCost, 0),
     allocatedApproachCostTotal: computed.reduce((acc, row) => acc + row.allocatedApproachCost, 0),
     dutyTotal: computed.reduce((acc, row) => acc + row.dutyCost, 0),
     allocationMethod,
     incotermMode,
+    marginCoverageThreshold,
+    marginCoverageRatio,
   };
 }
