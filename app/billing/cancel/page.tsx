@@ -3,21 +3,26 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
+function formatPlan(plan: string | null) {
+  if (!plan) return null;
+  return plan.charAt(0).toUpperCase() + plan.slice(1);
+}
+
 export default function BillingCancelPage() {
   const searchParams = useSearchParams();
-  const plan = searchParams.get('plan');
+  const plan = formatPlan(searchParams.get('plan'));
 
   return (
     <main className="auth-shell" style={{ alignContent: 'center' }}>
-      <section className="auth-card" style={{ width: 'min(100%, 560px)' }}>
-        <div className="badge warn" style={{ marginBottom: 12 }}>Checkout not completed</div>
-        <h1 style={{ marginTop: 0 }}>Payment canceled</h1>
+      <section className="auth-card" style={{ width: 'min(100%, 600px)' }}>
+        <div className="badge warn" style={{ marginBottom: 12 }}>Checkout paused</div>
+        <h1 style={{ marginTop: 0 }}>No payment was taken</h1>
         <p className="muted">
-          No payment was taken. You can review the pricing page and restart checkout whenever you are ready.
+          Your checkout was not completed, so your card was not charged. You can return to pricing, choose a plan again, or go back to your workspace.
         </p>
-        {plan ? <p className="muted" style={{ fontSize: 13 }}>Selected plan: {plan}</p> : null}
+        {plan ? <div className="alert warn" style={{ marginTop: 12 }}>Selected plan: <strong>{plan}</strong></div> : null}
         <div className="actions">
-          <Link className="btn btn-primary" href="/pricing">Return to pricing</Link>
+          <Link className="btn btn-primary" href="/pricing">Choose a plan</Link>
           <Link className="btn btn-secondary" href="/dashboard">Back to dashboard</Link>
         </div>
       </section>
