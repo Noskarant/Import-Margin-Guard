@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createOrganization, findOrgForUser } from '@/lib/demo-store';
+import { createOrganization, findOrgForUser } from '@/lib/data-store';
 import { requireUserId } from '@/lib/auth';
 
 export async function GET() {
