@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { calculateScenario } from '@/features/scenarios/lib/calculate';
-import { findOrgForUser, getAnalysis, getImport } from '@/lib/demo-store';
+import { findOrgForUser, getAnalysis, getImport } from '@/lib/data-store';
 import { requireUserId } from '@/lib/auth';
 
 export async function GET(_: Request, { params }: { params: Promise<{ analysisId: string }> }) {
@@ -35,12 +35,14 @@ export async function GET(_: Request, { params }: { params: Promise<{ analysisId
       const summary = calculateScenario(rows, {
         reportingCurrency: scenario.reportingCurrency,
         exchangeRate: scenario.exchangeRate,
+        exchangeRates: scenario.fxRates,
         costAllocationMethod: scenario.costAllocationMethod,
         incotermOverride: scenario.incotermOverride,
         originCost: scenario.originCost,
         mainFreightCost: scenario.mainFreightCost,
         insuranceCost: scenario.insuranceCost,
         destinationCost: scenario.destinationCost,
+        marginCoverageThreshold: scenario.marginCoverageThreshold,
       });
 
       return {
@@ -50,10 +52,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ analysisId
         notes: scenario.notes ?? '',
         appliedAssumptions: {
           reportingCurrency: scenario.reportingCurrency,
-          exchangeRate: scenario.exchangeRate,
+          exchangeRates: scenario.fxRates,
+          exchangeRateFallback: scenario.exchangeRate,
           costAllocationMethod: scenario.costAllocationMethod,
           incotermMode: scenario.incotermOverride ? 'override' : 'imported',
           incotermOverride: scenario.incotermOverride,
+          marginCoverageThreshold: scenario.marginCoverageThreshold,
         },
         summary,
       };
