@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { findOrgForUser, findSavedMappingForImport, getImport } from '@/lib/demo-store';
+import { findOrgForUser, findSavedMappingForImport, getImport } from '@/lib/data-store';
 import { requireUserId } from '@/lib/auth';
 
 export async function GET(_: Request, { params }: { params: Promise<{ importId: string }> }) {
