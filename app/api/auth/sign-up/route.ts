@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createUser } from '@/lib/data-store';
 import { AUTH_COOKIE } from '@/lib/auth';
+import { sendSignupConfirmationEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +13,10 @@ export async function POST(request: NextRequest) {
     }
 
     const user = await createUser(email, password);
+    sendSignupConfirmationEmail(email).catch((error) => {
+      console.error('Signup confirmation email failed', error);
+    });
+
     const response = NextResponse.json({ ok: true, userId: user.id });
     response.cookies.set(AUTH_COOKIE, user.id, { httpOnly: true, sameSite: 'lax', path: '/' });
     return response;
