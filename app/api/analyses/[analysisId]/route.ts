@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findOrgForUser, getAnalysis, getImport, saveAnalysis } from '@/lib/demo-store';
+import { findOrgForUser, getAnalysis, getImport, saveAnalysis } from '@/lib/data-store';
 import { requireUserId } from '@/lib/auth';
 
 export async function GET(_: Request, { params }: { params: Promise<{ analysisId: string }> }) {
