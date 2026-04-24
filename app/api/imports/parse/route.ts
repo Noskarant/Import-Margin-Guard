@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseCsvPreview } from '@/features/imports/lib/parse';
-import { createImport, findOrgForUser } from '@/lib/demo-store';
+import { createImport, findOrgForUser } from '@/lib/data-store';
 import { requireUserId } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
