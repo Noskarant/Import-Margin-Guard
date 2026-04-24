@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUserId } from '@/lib/auth';
-import { findOrgForUser } from '@/lib/demo-store';
+import { findOrgForUser } from '@/lib/data-store';
 import { getSupabaseAdmin } from '@/lib/supabase';
 import { BillingPlanKey, getBaseUrl, getBillingPlanConfig, getStripe } from '@/lib/stripe';
 
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       mode: config.mode,
       customer: customerId,
       line_items: [{ price: config.priceId, quantity: 1 }],
-      success_url: `${baseUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${baseUrl}/billing/success`,
       cancel_url: `${baseUrl}/billing/cancel?plan=${plan}`,
       metadata: {
         organizationId: org.id,
