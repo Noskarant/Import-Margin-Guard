@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAnalysis, findOrgForUser, listAnalyses } from '@/lib/demo-store';
+import { createAnalysis, findOrgForUser, listAnalyses } from '@/lib/data-store';
 import { requireUserId } from '@/lib/auth';
 
 export async function GET() {
