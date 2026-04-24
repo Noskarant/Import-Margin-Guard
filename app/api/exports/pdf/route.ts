@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { calculateScenario } from '@/features/scenarios/lib/calculate';
-import { getAnalysis, getImport, getOrganization } from '@/lib/demo-store';
+import { getAnalysis, getImport, getOrganization } from '@/lib/data-store';
 
 function sanitizeText(value: string) {
   return value
@@ -54,6 +54,10 @@ export async function POST(request: NextRequest) {
         dutyRate: scenario.dutyRateOverride ?? row.dutyRate,
         ancillaryFees: row.ancillaryFees * scenario.ancillaryMultiplier,
         salesPrice: row.salesPrice,
+        currency: row.currency,
+        incoterm: row.incoterm,
+        weightKg: row.weightKg,
+        volumeM3: row.volumeM3,
       }));
 
       return {
@@ -61,7 +65,18 @@ export async function POST(request: NextRequest) {
         scenarioName: scenario.name,
         isBaseline: scenario.isBaseline,
         notes: scenario.notes ?? '',
-        summary: calculateScenario(rows),
+        summary: calculateScenario(rows, {
+          reportingCurrency: scenario.reportingCurrency,
+          exchangeRate: scenario.exchangeRate,
+          exchangeRates: scenario.fxRates,
+          costAllocationMethod: scenario.costAllocationMethod,
+          incotermOverride: scenario.incotermOverride,
+          originCost: scenario.originCost,
+          mainFreightCost: scenario.mainFreightCost,
+          insuranceCost: scenario.insuranceCost,
+          destinationCost: scenario.destinationCost,
+          marginCoverageThreshold: scenario.marginCoverageThreshold,
+        }),
       };
     });
 
