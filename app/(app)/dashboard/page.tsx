@@ -4,7 +4,18 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-type Org = { id: string; name: string; country: string; currency: string };
+type Org = {
+  id: string;
+  name: string;
+  country: string;
+  currency: string;
+  billingPlan?: string;
+  billingStatus?: string | null;
+  billingActive?: boolean;
+  pilotExpiresAt?: string | null;
+  monthlyAnalysesUsed?: number;
+  monthlyAnalysesLimit?: number | null;
+};
 type Analysis = { id: string; title: string; updatedAt: string; status?: string };
 type ComparisonResult = {
   scenarioId: string;
@@ -34,8 +45,10 @@ const copy = {
     subtitle: 'Track your workspace status and launch new import scenario analyses quickly.',
     organization: 'Organization',
     planStatus: 'Plan status',
-    trial: 'Trial',
+    active: 'Active',
+    inactive: 'Inactive',
     analysesUsed: 'Analyses used',
+    unlimited: 'Unlimited',
     recentSavings: 'Recent estimated savings',
     startAnalysis: 'Start a new import analysis',
     startAnalysisText: 'Upload a source file, map columns, and compare baseline vs alternative sourcing scenarios.',
@@ -62,8 +75,10 @@ const copy = {
     subtitle: 'Suis l’état de ton espace et lance rapidement de nouvelles analyses d’import.',
     organization: 'Organisation',
     planStatus: 'Statut du plan',
-    trial: 'Essai',
+    active: 'Actif',
+    inactive: 'Inactif',
     analysesUsed: 'Analyses utilisées',
+    unlimited: 'Illimité',
     recentSavings: 'Économies estimées récentes',
     startAnalysis: 'Démarrer une nouvelle analyse d’import',
     startAnalysisText: 'Importe un fichier source, mappe les colonnes et compare la baseline avec des scénarios alternatifs.',
@@ -85,6 +100,11 @@ const copy = {
     na: 'N/A',
   },
 } as const;
+
+function formatPlan(plan?: string) {
+  if (!plan) return 'Free';
+  return plan.charAt(0).toUpperCase() + plan.slice(1);
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -119,6 +139,7 @@ export default function DashboardPage() {
       setOrg(orgJson.organization);
 
       const analysesResponse = await fetch('/api/analyses');
+      if (analysesResponse.status === 402) return router.push('/pricing?billing=required');
       const analysesJson = await analysesResponse.json();
       const recentAnalyses: Analysis[] = analysesJson.analyses ?? [];
       setAnalyses(recentAnalyses);
@@ -167,6 +188,8 @@ export default function DashboardPage() {
   }, [router]);
 
   const totalSavings = recentOutcomes.reduce((acc, item) => acc + Math.max(item.savings, 0), 0);
+  const monthlyUsed = org?.monthlyAnalysesUsed ?? analyses.length;
+  const monthlyLimit = org?.monthlyAnalysesLimit ?? null;
 
   if (loading) return <main className="content-wrap"><div className="card">{t.loading}</div></main>;
   if (error) return <main className="content-wrap"><div className="alert error">{error}</div></main>;
@@ -186,12 +209,13 @@ export default function DashboardPage() {
         </article>
         <article className="card">
           <p className="kpi-title">{t.planStatus}</p>
-          <p className="kpi-value" style={{ fontSize: 18 }}>{t.trial}</p>
-          <span className="badge warn">14 days</span>
+          <p className="kpi-value" style={{ fontSize: 18 }}>{formatPlan(org?.billingPlan)}</p>
+          <span className={`badge ${org?.billingActive ? 'success' : 'warn'}`}>{org?.billingActive ? t.active : t.inactive}</span>
+          {org?.billingStatus ? <p className="muted" style={{ marginTop: 8 }}>{org.billingStatus}</p> : null}
         </article>
         <article className="card">
           <p className="kpi-title">{t.analysesUsed}</p>
-          <p className="kpi-value" style={{ fontSize: 18 }}>{analyses.length} / 5</p>
+          <p className="kpi-value" style={{ fontSize: 18 }}>{monthlyUsed} / {monthlyLimit ?? t.unlimited}</p>
           <p className="muted">{t.recentSavings}: €{totalSavings.toFixed(2)}</p>
         </article>
       </section>
